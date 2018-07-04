@@ -67,6 +67,44 @@ impl Registers {
 		self.h = ((hl & 0xFF00) >> 8) as u8;
 		self.l = (hl & 0x00FF) as u8;
 	}
+
+	pub fn set_flags(&mut self, z:bool, n:bool, h:bool, c:bool) {
+		self.f = ((z as u8) << 7) + ((n as u8) << 6)
+			+ ((h as u8) << 5) + ((c as u8) << 4);
+	}
+
+	pub fn get_z(&self) -> bool {
+		(self.f & 0b10000000) == 0b10000000
+	}
+
+	pub fn set_z(&mut self, z:bool) {
+		self.f = (self.f & 0b01111111) | ((z as u8) << 7);
+	}
+
+	pub fn get_n(&self) -> bool {
+		(self.f & 0b01000000) == 0b01000000
+	}
+
+	pub fn set_n(&mut self, n:bool) {
+		self.f = (self.f & 0b10111111) | ((n as u8) << 6);
+	}
+
+	pub fn get_h(&self) -> bool {
+		(self.f & 0b00100000) == 0b00100000
+	}
+
+	pub fn set_h(&mut self, h:bool) {
+		self.f = (self.f & 0b11011111) | ((h as u8) << 5);
+	}
+
+	pub fn get_c(&self) -> bool {
+		(self.f & 0b00010000) == 0b00010000
+	}
+
+	pub fn set_c(&mut self, c:bool) {
+		self.f = (self.f & 0b11101111) | ((c as u8) << 4);
+	}
+
 }
 
 mod test {
@@ -116,5 +154,63 @@ mod test {
 		assert_eq!(testreg.get_hl(), 0xDEAD);
 		assert_eq!(testreg.h, 0xDE);
 		assert_eq!(testreg.l, 0xAD);
+	}
+
+	#[test]
+	fn test_z() {
+		let mut testreg = super::Registers::load_defaults();
+		testreg.set_z(true);
+		assert_eq!(testreg.get_z(), true);
+		testreg.set_z(false);
+		assert_eq!(testreg.get_z(), false);
+	}
+
+	#[test]
+	fn test_n() {
+		let mut testreg = super::Registers::load_defaults();
+		testreg.set_n(true);
+		assert_eq!(testreg.get_n(), true);
+		testreg.set_n(false);
+		assert_eq!(testreg.get_n(), false);
+	}
+
+	#[test]
+	fn test_h() {
+		let mut testreg = super::Registers::load_defaults();
+		testreg.set_h(true);
+		assert_eq!(testreg.get_h(), true);
+		testreg.set_h(false);
+		assert_eq!(testreg.get_h(), false);
+	}
+
+	#[test]
+	fn test_c() {
+		let mut testreg = super::Registers::load_defaults();
+		testreg.set_c(true);
+		assert_eq!(testreg.get_c(), true);
+		testreg.set_c(false);
+		assert_eq!(testreg.get_c(), false);
+	}
+
+	#[test]
+	fn test_set_flags() {
+		let mut testreg = super::Registers::load_defaults();
+		testreg.set_flags(true, false, false, true);
+		assert_eq!(testreg.get_z(), true);
+		assert_eq!(testreg.get_n(), false);
+		assert_eq!(testreg.get_h(), false);
+		assert_eq!(testreg.get_c(), true);
+
+		testreg.set_flags(true, true, true, true);
+		assert_eq!(testreg.get_z(), true);
+		assert_eq!(testreg.get_n(), true);
+		assert_eq!(testreg.get_h(), true);
+		assert_eq!(testreg.get_c(), true);
+
+		testreg.set_flags(false, false, false, false);
+		assert_eq!(testreg.get_z(), false);
+		assert_eq!(testreg.get_n(), false);
+		assert_eq!(testreg.get_h(), false);
+		assert_eq!(testreg.get_c(), false);
 	}
 }
