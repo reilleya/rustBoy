@@ -1,27 +1,117 @@
 mod registers;
 mod memory;
 mod rom;
+mod interrupts;
 
 pub struct Core {
 	pub reg: registers::Registers,
-	pub mem: memory::Memory
+	pub mem: memory::Memory,
+	pub int: interrupts::Interrupts
 }
 
 impl Core {
 	pub fn new() -> Core {
 		Core {
 			reg: registers::Registers::load_defaults(),
-			mem: memory::Memory::create_memory()
+			mem: memory::Memory::create_memory(),
+			int: interrupts::Interrupts::create()
 		}
 	}
 
 	pub fn step(&mut self) {
 		let ins = self.mem.get_mem(self.reg.pc);
+		//println!("Running {:2X} at {:2X}", ins, self.reg.pc);
 		let _numsteps:(u16, u64) = match ins {
 			0x00 => (1, 4),
+			0x01 => {
+				let val = self.get_16_pc(1);
+				self.reg.set_bc(val);
+				(3, 12)
+			}
+
+			0x05 => self.dec_b(),
+			0x06 => {
+				self.reg.b = self.get_8_pc(1);
+				(2, 8)
+			}
+
+
+			0x0D => self.dec_c(),
+			0x0E => {
+				self.reg.c = self.get_8_pc(1);
+				(2, 8)
+			}
+
+
+			0x11 => {
+				let val = self.get_16_pc(1);
+				self.reg.set_de(val);
+				(3, 12)
+			}
+
+
+			0x15 => self.dec_d(),
+			0x16 => {
+				self.reg.d = self.get_8_pc(1);
+				(2, 8)
+			}
+
+
+			0x1D => self.dec_e(),
+			0x1E => {
+				self.reg.e = self.get_8_pc(1);
+				(2, 8)
+			}
+
+
+			0x20 => { // JR NZ
+				if !self.reg.get_z() {
+					let offset = self.get_8_pc(1) as u16;
+					self.reg.pc += (offset & 0x7f);
+					self.reg.pc -= 128 * ((offset & 0x80) >> 7)
+				}
+				(2, 8)
+			}
+			0x21 => {
+				let val = self.get_16_pc(1);
+				self.reg.set_hl(val);
+				(3, 12)
+			}
+
+
+			0x25 => self.dec_h(),
+			0x26 => {
+				self.reg.h = self.get_8_pc(1);
+				(2, 8)
+			}
+
+
+			0x2D => self.dec_l(),
+			0x2E => {
+				self.reg.l = self.get_8_pc(1);
+				(2, 8)
+			}
+
+
+			0x31 => {
+				self.reg.sp = self.get_16_pc(1);
+				(3, 12)
+			}
+			0x32 => {
+				let addr = self.reg.get_hl();
+				self.mem.set_mem(addr, self.reg.a);
+				self.reg.set_hl(addr - 1);
+				(1, 8)
+			}
 
 
 			0x3C => self.inc_a(),
+
+
+			0x3E => {
+				self.reg.a = self.get_8_pc(1);
+				(2, 8)
+			}
 
 
 			0x40 => (1, 4),
@@ -223,24 +313,51 @@ impl Core {
 
 			0x7F => (1, 4),
 
+
+			0xAF => { // A xor A -> A
+				self.reg.a = 0;
+				self.reg.set_flags(true, false, false, false);
+				(1, 4)
+			}
+
+
 			0xC3 => {
-				self.reg.pc = ((self.get_at_pc(2) as u16) << 8) + (self.get_at_pc(1) as u16);
-				println!("{:4X}", self.reg.pc);
+				self.reg.pc = self.get_16_pc(1);
 				(0, 4)
 			}
 
-			0x3E => {
-				self.reg.a = self.mem.get_mem(self.reg.pc + 1);
-				(2, 8)
+
+			0xE0 => {
+				let addr = 0xFF00 + (self.get_8_pc(1) as u16);
+				self.mem.set_mem(addr, self.reg.a);
+				(2, 12)
 			}
 
-			_ => panic!("Instruction {:2X} not implemented!", ins)
+
+
+			0xF0 => {
+				let addr = 0xFF00 + (self.get_8_pc(1) as u16);
+				self.reg.a = self.mem.get_mem(addr);
+				(2, 12)
+			}
+
+
+			0xF3 => {
+				self.int.toggle(false);
+				(1, 4)
+			}
+
+			_ => panic!("Instruction {:2X} at {:2X} not implemented!", ins, self.reg.pc)
 		};
 		self.reg.pc += _numsteps.0
 	}
 
-	fn get_at_pc(&self, offset:u16) -> u8 {
+	fn get_8_pc(&self, offset:u16) -> u8 {
 		self.mem.get_mem(self.reg.pc + offset)
+	}
+
+	fn get_16_pc(&self, offset:u16) -> u16 {
+		((self.get_8_pc(offset + 1) as u16) << 8) + (self.get_8_pc(offset) as u16)
 	}
 
 	fn inc_a(&mut self) -> (u16, u64) {
@@ -249,6 +366,76 @@ impl Core {
 		let half = (self.reg.a & 0xF) + 1 > 0xF;
 		let carry = self.reg.get_c();
 		self.reg.set_flags(zero, false, half, carry);
+		(1, 4)
+	}
+
+	fn dec_a(&mut self) -> (u16, u64) {
+		let half = self.reg.a & 0xF == 0;
+		let (res, carry) = self.reg.a.overflowing_sub(1);
+		self.reg.a = res;
+		let zero = self.reg.a == 0;
+		let carry = self.reg.get_c();
+		self.reg.set_flags(zero, true, half, carry);
+		(1, 4)
+	}
+
+	fn dec_b(&mut self) -> (u16, u64) {
+		let half = self.reg.b & 0xF == 0;
+		let (res, carry) = self.reg.b.overflowing_sub(1);
+		self.reg.b = res;
+		let zero = self.reg.b == 0;
+		let carry = self.reg.get_c();
+		self.reg.set_flags(zero, true, half, carry);
+		(1, 4)
+	}
+
+	fn dec_c(&mut self) -> (u16, u64) {
+		let half = self.reg.c & 0xF == 0;
+		let (res, carry) = self.reg.c.overflowing_sub(1);
+		self.reg.c = res;
+		let zero = self.reg.c == 0;
+		let carry = self.reg.get_c();
+		self.reg.set_flags(zero, true, half, carry);
+		(1, 4)
+	}
+
+	fn dec_d(&mut self) -> (u16, u64) {
+		let half = self.reg.d & 0xF == 0;
+		let (res, carry) = self.reg.d.overflowing_sub(1);
+		self.reg.d = res;
+		let zero = self.reg.d == 0;
+		let carry = self.reg.get_c();
+		self.reg.set_flags(zero, true, half, carry);
+		(1, 4)
+	}
+	
+	fn dec_e(&mut self) -> (u16, u64) {
+		let half = self.reg.e & 0xF == 0;
+		let (res, carry) = self.reg.e.overflowing_sub(1);
+		self.reg.e = res;
+		let zero = self.reg.e == 0;
+		let carry = self.reg.get_c();
+		self.reg.set_flags(zero, true, half, carry);
+		(1, 4)
+	}
+
+	fn dec_h(&mut self) -> (u16, u64) {
+		let half = self.reg.h & 0xF == 0;
+		let (res, carry) = self.reg.h.overflowing_sub(1);
+		self.reg.h = res;
+		let zero = self.reg.h == 0;
+		let carry = self.reg.get_c();
+		self.reg.set_flags(zero, true, half, carry);
+		(1, 4)
+	}
+
+	fn dec_l(&mut self) -> (u16, u64) {
+		let half = self.reg.l & 0xF == 0;
+		let (res, carry) = self.reg.h.overflowing_sub(1);
+		self.reg.l = res;
+		let zero = self.reg.l == 0;
+		let carry = self.reg.get_c();
+		self.reg.set_flags(zero, true, half, carry);
 		(1, 4)
 	}
 

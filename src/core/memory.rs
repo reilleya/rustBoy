@@ -14,4 +14,8 @@ impl Memory {
 	pub fn get_mem(&self, loc:u16) -> u8 {
 		self.rom.get_mem(loc)
 	}
+
+	pub fn set_mem(&mut self, loc:u16, val:u8) {
+		println!("Wrote {:2X} to {:2X}", val, loc);
+	}
 }
