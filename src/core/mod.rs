@@ -2,11 +2,13 @@ mod registers;
 mod memory;
 mod rom;
 mod interrupts;
+mod display;
+mod timer;
 
 pub struct Core {
 	pub reg: registers::Registers,
 	pub mem: memory::Memory,
-	pub int: interrupts::Interrupts
+	pub int: interrupts::Interrupts,
 }
 
 impl Core {
@@ -14,13 +16,13 @@ impl Core {
 		Core {
 			reg: registers::Registers::load_defaults(),
 			mem: memory::Memory::create_memory(),
-			int: interrupts::Interrupts::create()
+			int: interrupts::Interrupts::create(),
 		}
 	}
 
 	pub fn step(&mut self) {
 		let ins = self.mem.get_mem(self.reg.pc);
-		//println!("Running {:2X} at {:2X}", ins, self.reg.pc);
+		println!("Running {:2X} at {:2X}", ins, self.reg.pc);
 		let _numsteps:(u16, u64) = match ins {
 			0x00 => (1, 4),
 			0x01 => {
@@ -347,16 +349,29 @@ impl Core {
 				(1, 4)
 			}
 
+
+			0xFE => {
+				let cmp = self.get_8_pc(1);
+				let a = self.reg.a;
+				self.reg.set_z(a == cmp);
+				self.reg.set_n(true);
+				self.reg.set_h(true); // TODO
+				self.reg.set_c(a < cmp);
+				(2, 8)
+			}
+
+
 			_ => panic!("Instruction {:2X} at {:2X} not implemented!", ins, self.reg.pc)
 		};
-		self.reg.pc += _numsteps.0
+		self.reg.pc += _numsteps.0;
+		self.mem.timer.step(_numsteps.1);
 	}
 
-	fn get_8_pc(&self, offset:u16) -> u8 {
+	fn get_8_pc(&mut self, offset:u16) -> u8 {
 		self.mem.get_mem(self.reg.pc + offset)
 	}
 
-	fn get_16_pc(&self, offset:u16) -> u16 {
+	fn get_16_pc(&mut self, offset:u16) -> u16 {
 		((self.get_8_pc(offset + 1) as u16) << 8) + (self.get_8_pc(offset) as u16)
 	}
 
