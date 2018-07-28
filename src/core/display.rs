@@ -1,11 +1,24 @@
 pub struct Display {
 	pub ly_coord: u8,
+	pub steps: u64
 }
 
 impl Display {
 	pub fn create() -> Display {
 		Display {
-			ly_coord: 0
+			ly_coord: 0,
+			steps: 0
+		}
+	}
+
+	pub fn update(&mut self, steps:u64) {
+		self.steps += steps;
+		if self.steps > 456 {
+			self.steps -= 456;
+			self.ly_coord += 1;
+			if self.ly_coord == 157 {
+				self.ly_coord = 0;
+			}
 		}
 	}
 

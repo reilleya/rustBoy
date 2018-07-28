@@ -20,6 +20,11 @@ impl Memory {
 		}
 	}
 
+	pub fn update(&mut self, steps:u64) {
+		self.disp.update(steps);
+		self.timer.step(steps);
+	}
+
 	pub fn get_mem(&self, loc:u16) -> u8 {
 		println!("Read {:2X}", loc);
 		match loc {
