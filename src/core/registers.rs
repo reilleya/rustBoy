@@ -105,6 +105,16 @@ impl Registers {
 		self.f = (self.f & 0b11101111) | ((c as u8) << 4);
 	}
 
+	pub fn dispState(&self) {
+		println!("AF: {:4X}", self.get_af());
+		println!("BC: {:4X}", self.get_bc());
+		println!("DE: {:4X}", self.get_de());
+		println!("HL: {:4X}", self.get_hl());
+		println!("PC: {:4X}", self.pc);
+		println!("SP: {:4X}", self.sp);
+		println!("Z:{:?} N:{:?} H:{:?} C:{:?}", self.get_z(), self.get_n(), self.get_h(), self.get_c());
+	}
+
 }
 
 mod test {

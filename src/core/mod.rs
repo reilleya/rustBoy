@@ -30,11 +30,32 @@ impl Core {
 				self.reg.set_bc(val);
 				(3, 12)
 			}
+			0x02 => {
+				let addr = self.reg.get_bc();
+				let val = self.reg.a;
+				self.mem.set_mem(addr, val);
+				(1, 8)
+			}
+			0x03 => {
+				let val = self.reg.get_bc() + 1;
+				self.reg.set_bc(val);
+				(1, 8)
+			}
 
 			0x05 => self.dec_b(),
 			0x06 => {
 				self.reg.b = self.get_8_pc(1);
 				(2, 8)
+			}
+
+			0x09 => {
+				let operand = self.reg.get_bc();
+				self.addHL(operand)
+			}
+			0x0A => {
+				let addr = self.reg.get_bc();
+				self.reg.a = self.mem.get_mem(addr);
+				(1, 8)
 			}
 			0x0B => {
 				let val = self.reg.get_bc();
@@ -48,13 +69,22 @@ impl Core {
 				(2, 8)
 			}
 
-
 			0x11 => {
 				let val = self.get_16_pc(1);
 				self.reg.set_de(val);
 				(3, 12)
 			}
-
+			0x12 => {
+				let addr = self.reg.get_de();
+				let val = self.reg.a;
+				self.mem.set_mem(addr, val);
+				(1, 8)
+			}
+			0x13 => {
+				let val = self.reg.get_de() + 1;
+				self.reg.set_de(val);
+				(1, 8)
+			}
 
 			0x15 => self.dec_d(),
 			0x16 => {
@@ -62,7 +92,15 @@ impl Core {
 				(2, 8)
 			}
 
-
+			0x19 => {
+				let operand = self.reg.get_de();
+				self.addHL(operand)
+			}
+			0x1A => {
+				let addr = self.reg.get_de();
+				self.reg.a = self.mem.get_mem(addr);
+				(1, 8)
+			}
 			0x1B => {
 				let val = self.reg.get_de();
 				self.reg.set_de(val - 1);
@@ -91,11 +129,29 @@ impl Core {
 				(3, 12)
 			}
 
+			0x22 => {
+				let addr = self.reg.get_hl();
+				let val = self.reg.a;
+				self.mem.set_mem(addr, val);
+				self.reg.set_hl(addr + 1);
+				(1, 8)
+			}
+
+			0x23 => {
+				let val = self.reg.get_hl() + 1;
+				self.reg.set_hl(val);
+				(1, 8)
+			}
 
 			0x25 => self.dec_h(),
 			0x26 => {
 				self.reg.h = self.get_8_pc(1);
 				(2, 8)
+			}
+
+			0x29 => {
+				let operand = self.reg.get_hl();
+				self.addHL(operand)
 			}
 
 			0x2A => {
@@ -143,12 +199,21 @@ impl Core {
 				}
 				(1, 8)
 			}
+			0x33 => {
+				self.reg.sp += 1;
+				(1, 8)
+			}
 
 			0x36 => {
 				let putAddr = self.reg.get_hl();
 				let putVal = self.get_8_pc(1);
 				self.mem.set_mem(putAddr, putVal);
 				(2, 12)
+			}
+
+			0x39 => {
+				let operand = self.reg.sp;
+				self.addHL(operand)
 			}
 
 			0x3B => {
@@ -185,8 +250,11 @@ impl Core {
 				self.reg.b = self.reg.l;
 				(1, 4)
 			}
-
-
+			0x46 => {
+				let addr = self.reg.get_hl();
+				self.reg.b = self.mem.get_mem(addr);
+				(1, 8)
+			}
 			0x47 => {
 				self.reg.b = self.reg.a;
 				(1, 4)
@@ -212,8 +280,11 @@ impl Core {
 				self.reg.c = self.reg.l;
 				(1, 4)
 			}
-
-
+			0x4E => {
+				let addr = self.reg.get_hl();
+				self.reg.c = self.mem.get_mem(addr);
+				(1, 8)
+			}
 			0x4F => {
 				self.reg.c = self.reg.a;
 				(1, 4)
@@ -239,8 +310,11 @@ impl Core {
 				self.reg.d = self.reg.l;
 				(1, 4)
 			}
-
-
+			0x56 => {
+				let addr = self.reg.get_hl();
+				self.reg.d = self.mem.get_mem(addr);
+				(1, 8)
+			}
 			0x57 => {
 				self.reg.d = self.reg.a;
 				(1, 4)
@@ -266,8 +340,11 @@ impl Core {
 				self.reg.e = self.reg.l;
 				(1, 4)
 			}
-
-
+			0x5E => {
+				let addr = self.reg.get_hl();
+				self.reg.e = self.mem.get_mem(addr);
+				(1, 8)
+			}
 			0x5F => {
 				self.reg.e = self.reg.a;
 				(1, 4)
@@ -293,8 +370,11 @@ impl Core {
 				self.reg.h = self.reg.l;
 				(1, 4)
 			}
-
-
+			0x66 => {
+				let addr = self.reg.get_hl();
+				self.reg.h = self.mem.get_mem(addr);
+				(1, 8)
+			}
 			0x67 => {
 				self.reg.h = self.reg.a;
 				(1, 4)
@@ -320,14 +400,29 @@ impl Core {
 				(1, 4)
 			}
 			0x6D => (1, 4),
-
-
+			0x6E => {
+				let addr = self.reg.get_hl();
+				self.reg.l = self.mem.get_mem(addr);
+				(1, 8)
+			}
 			0x6F => {
 				self.reg.l = self.reg.a;
 				(1, 4)
 			}
 
+			0x77 => {
+				let addr = self.reg.get_hl();
+				let val = self.reg.a;
+				self.mem.set_mem(addr, val);
+				(1, 8)
+			}
 
+			0x7E => {
+				let addr = self.reg.get_hl();
+				self.reg.a = self.mem.get_mem(addr);
+				(1, 8)
+			}
+			0x7F => (1, 4),
 			0x80 => self.op_80(),
 			0x81 => self.op_81(),
 			0x82 => self.op_82(),
@@ -360,7 +455,11 @@ impl Core {
 				self.reg.a = self.reg.l;
 				(1, 4)
 			}
-
+			0x7E => {
+				let addr = self.reg.get_hl();
+				self.reg.a = self.mem.get_mem(addr);
+				(1, 8)
+			}
 			0x7F => (1, 4),
 
 			0x9B => {
@@ -393,7 +492,7 @@ impl Core {
 				let operand = self.reg.l;
 				self.andA(operand)
 			}
-			0xA1 => {
+			0xA6 => {
 				let operand = self.mem.get_mem(self.reg.get_hl());
 				self.andA(operand);
 				(1,8)
@@ -402,13 +501,40 @@ impl Core {
 				let operand = self.reg.a;
 				self.andA(operand)
 			}
-
+			0xA8 => {
+				let operand = self.reg.b;
+				self.xorA(operand)
+			}
+			0xA9 => {
+				let operand = self.reg.c;
+				self.xorA(operand)
+			}
+			0xAA => {
+				let operand = self.reg.d;
+				self.xorA(operand)
+			}
+			0xAB => {
+				let operand = self.reg.e;
+				self.xorA(operand)
+			}
+			0xAC => {
+				let operand = self.reg.h;
+				self.xorA(operand)
+			}
+			0xAD => {
+				let operand = self.reg.l;
+				self.xorA(operand)
+			}
+			0xAE => {
+				let operand = self.mem.get_mem(self.reg.get_hl());
+				self.xorA(operand);
+				(1,8)
+			}
 			0xAF => { // A xor A -> A
 				self.reg.a = 0;
 				self.reg.set_flags(true, false, false, false);
 				(1, 4)
 			}
-
 			0xB0 => {
 				let operand = self.reg.b;
 				self.orA(operand)
@@ -450,6 +576,19 @@ impl Core {
 				(0, 4)
 			}
 
+			0xC5 => {
+				let val = self.reg.get_bc();
+				self.push(val);
+				(1, 16)
+			}
+
+			0xC7 => {
+				let addr = self.reg.pc;
+				self.push(addr);
+				self.reg.pc = 0;
+				(1, 32)
+			}
+
 			0xC9 => {
 				self.reg.pc = self.pop();
 				(1, 8)
@@ -467,13 +606,38 @@ impl Core {
 				(2, 12)
 			}
 
+			0xCF => {
+				let addr = self.reg.pc;
+				self.push(addr + 1);
+				self.reg.pc = 0x08;
+				(0, 32)
+			}
+
 			0xD1 => {
 				let popped = self.pop();
 				self.reg.set_de(popped);
 				(1, 12)
 			}
 
+			0xD5 => {
+				let val = self.reg.get_de();
+				self.push(val);
+				(1, 16)
+			}
 
+			0xD7 => {
+				let addr = self.reg.pc;
+				self.push(addr + 1);
+				self.reg.pc = 0x10;
+				(0, 32)
+			}
+
+			0xDF => {
+				let addr = self.reg.pc;
+				self.push(addr + 1);
+				self.reg.pc = 0x18;
+				(0, 32)
+			}
 			0xE0 => {
 				let addr = 0xFF00 + (self.get_8_pc(1) as u16);
 				self.mem.set_mem(addr, self.reg.a);
@@ -490,16 +654,26 @@ impl Core {
 				(1, 8)
 			}
 
+			0xE5 => {
+				let val = self.reg.get_hl();
+				self.push(val);
+				(1, 16)
+			}
 			0xE6 => {
 				let operand = self.get_8_pc(1);
 				self.andA(operand);
 				(2, 8)
 			}
+			0xE7 => {
+				let addr = self.reg.pc;
+				self.push(addr + 1);
+				self.reg.pc = 0x20;
+				(0, 32)
+			}
 
 			0xE9 => {
-				//let addr = 
 				self.reg.pc = self.reg.get_hl();
-				(1, 4)
+				(0, 4)
 			}
 
 			0xEA => {
@@ -508,6 +682,12 @@ impl Core {
 				(3, 16)
 			}
 
+			0xEF => {
+				let addr = self.reg.pc;
+				self.push(addr + 1);
+				self.reg.pc = 0x28;
+				(0, 32)
+			}
 			0xF0 => {
 				let addr = 0xFF00 + (self.get_8_pc(1) as u16);
 				self.reg.a = self.mem.get_mem(addr);
@@ -524,6 +704,24 @@ impl Core {
 				(1, 4)
 			}
 
+			0xF5 => {
+				let val = self.reg.get_af();
+				self.push(val);
+				(1, 16)
+			}
+
+			0xF7 => {
+				let addr = self.reg.pc;
+				self.push(addr + 1);
+				self.reg.pc = 0x30;
+				(0, 32)
+			}
+
+			0xFA => {
+				let addr = self.get_16_pc(1);
+				self.reg.a = self.mem.get_mem(addr);
+				(3, 16)
+			}
 			0xFB => {
 				self.int.toggle(true);
 				(1, 4)
@@ -538,8 +736,12 @@ impl Core {
 				self.reg.set_c(a < cmp);
 				(2, 8)
 			}
-
-
+			0xFF => {
+				let addr = self.reg.pc;
+				self.push(addr + 1);
+				self.reg.pc = 0x38;
+				(0, 32)
+			}
 			_ => panic!("Instruction {:2X} at {:2X} not implemented!", ins, self.reg.pc)
 		};
 		self.reg.pc += _numsteps.0;
@@ -579,6 +781,21 @@ impl Core {
 		let z = self.reg.a == 0;
 		self.reg.set_flags(z, false, true, false);
 		(1, 4)
+	}
+
+	fn xorA(&mut self, operand:u8) -> (u16, u64) {
+		self.reg.a ^= operand;
+		let z = self.reg.a == 0;
+		self.reg.set_flags(z, false, false, false);
+		(1, 4)
+	}
+
+	fn addHL(&mut self, operand:u16) -> (u16, u64) {
+		let val = self.reg.get_hl() + operand;
+		self.reg.set_hl(val);
+		let z = self.reg.get_z();
+		self.reg.set_flags(z, false, true, true); // Todo: Fix carry
+		(1, 8)
 	}
 
 	fn handleCB(&mut self, op:u8) -> (u16, u64) {
@@ -722,70 +939,70 @@ impl Core {
 
 	// A + B -> A
 	fn op_80(&mut self) -> (u16, u64) {
+		let half = (self.reg.a & 0xF) + (self.reg.b & 0xF) > 0xF;
 		let (res, carry) = self.reg.a.overflowing_add(self.reg.b);
 		self.reg.a = res;
 		let zero = self.reg.a == 0;
-		let half = (self.reg.a & 0xF) + (self.reg.a & 0xF) > 0xF;
 		self.reg.set_flags(zero, false, half, carry);
 		(1, 4)
 	}
 
 	// A + C -> A
 	fn op_81(&mut self) -> (u16, u64) {
+		let half = (self.reg.a & 0xF) + (self.reg.c & 0xF) > 0xF;
 		let (res, carry) = self.reg.a.overflowing_add(self.reg.c);
 		self.reg.a = res;
 		let zero = self.reg.a == 0;
-		let half = (self.reg.a & 0xF) + (self.reg.c & 0xF) > 0xF;
 		self.reg.set_flags(zero, false, half, carry);
 		(1, 4)
 	}
 
 	// A + D -> A
 	fn op_82(&mut self) -> (u16, u64) {
+		let half = (self.reg.a & 0xF) + (self.reg.d & 0xF) > 0xF;
 		let (res, carry) = self.reg.a.overflowing_add(self.reg.d);
 		self.reg.a = res;
 		let zero = self.reg.a == 0;
-		let half = (self.reg.a & 0xF) + (self.reg.d & 0xF) > 0xF;
 		self.reg.set_flags(zero, false, half, carry);
 		(1, 4)
 	}
 
 	// A + E -> A
 	fn op_83(&mut self) -> (u16, u64) {
+		let half = (self.reg.a & 0xF) + (self.reg.e & 0xF) > 0xF;
 		let (res, carry) = self.reg.a.overflowing_add(self.reg.e);
 		self.reg.a = res;
 		let zero = self.reg.a == 0;
-		let half = (self.reg.a & 0xF) + (self.reg.e & 0xF) > 0xF;
 		self.reg.set_flags(zero, false, half, carry);
 		(1, 4)
 	}
 
 	// A + H -> A
 	fn op_84(&mut self) -> (u16, u64) {
+		let half = (self.reg.a & 0xF) + (self.reg.h & 0xF) > 0xF;
 		let (res, carry) = self.reg.a.overflowing_add(self.reg.h);
 		self.reg.a = res;
 		let zero = self.reg.a == 0;
-		let half = (self.reg.a & 0xF) + (self.reg.h & 0xF) > 0xF;
 		self.reg.set_flags(zero, false, half, carry);
 		(1, 4)
 	}
 
 	// A + L -> A
 	fn op_85(&mut self) -> (u16, u64) {
+		let half = (self.reg.a & 0xF) + (self.reg.l & 0xF) > 0xF;
 		let (res, carry) = self.reg.a.overflowing_add(self.reg.l);
 		self.reg.a = res;
 		let zero = self.reg.a == 0;
-		let half = (self.reg.a & 0xF) + (self.reg.l & 0xF) > 0xF;
 		self.reg.set_flags(zero, false, half, carry);
 		(1, 4)
 	}
 
 	// A + A -> A
 	fn op_87(&mut self) -> (u16, u64) {
+		let half = (self.reg.a & 0xF) + (self.reg.a & 0xF) > 0xF;
 		let (res, carry) = self.reg.a.overflowing_add(self.reg.a);
 		self.reg.a = res;
 		let zero = self.reg.a == 0;
-		let half = (self.reg.a & 0xF) + (self.reg.a & 0xF) > 0xF;
 		self.reg.set_flags(zero, false, half, carry);
 		(1, 4)
 	}
