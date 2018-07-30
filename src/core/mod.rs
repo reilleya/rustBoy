@@ -455,6 +455,11 @@ impl Core {
 				(1, 8)
 			}
 
+			0xCB => {
+				let op = self.get_8_pc(1);
+				self.handleCB(op)
+			}
+
 			0xCD => {
 				let pc = self.reg.pc;
 				self.reg.pc = self.get_16_pc(1) - 2;
@@ -576,6 +581,50 @@ impl Core {
 		(1, 4)
 	}
 
+	fn handleCB(&mut self, op:u8) -> (u16, u64) {
+
+		let mut operand = match (op & 0x0F) {
+			0x0 | 0x8 => self.reg.b,
+			0x1 | 0x9 => self.reg.c,
+			0x2 | 0xA => self.reg.d,
+			0x3 | 0xB => self.reg.e,
+			0x4 | 0xC => self.reg.h,
+			0x5 | 0xD => self.reg.l,
+
+			0x7 | 0xF => self.reg.a,
+			_ => panic!("Invalid CB operand")
+		};
+
+		operand = match op {
+			0x00 ..= 0x07 => operand, // Rotate left through carry
+			0x07 ..= 0x0F => operand, // Rotate right through carry
+			
+			0x30 ..= 0x37 => { // Swap
+				let res = ((operand & 0xF0) >> 4) + ((operand & 0x0F) << 4);
+				self.reg.set_flags(res == 0, false, false, false);
+				res
+			}
+
+			0x80 ..= 0x87 => operand & 0xFE, // Reset bit 0
+			0x88 ..= 0x8F => operand & 0xFD, // Reset bit 1
+			0x90 ..= 0x97 => operand & 0xFB, // Reset bit 2
+			0x98 ..= 0x9F => operand & 0xF7, // Reset bit 3
+			0xA0 ..= 0xA7 => operand & 0xEF, // Reset bit 4
+			0xA8 ..= 0xAF => operand & 0xDF, // Reset bit 5
+			0xB0 ..= 0xB7 => operand & 0xBF, // Reset bit 6
+			0xB8 ..= 0xBF => operand & 0x7F, // Reset bit 7
+			0xC0 ..= 0xC7 => operand | 0x01, // Set bit 0
+			0xC8 ..= 0xCF => operand | 0x02, // Set bit 1
+			0xD0 ..= 0xD7 => operand | 0x04, //	Set bit 2
+			0xD8 ..= 0xDF => operand | 0x08, // Set bit 3
+			0xE0 ..= 0xE7 => operand | 0x10, // Set bit 4
+			0xE8 ..= 0xEF => operand | 0x20, // Set bit 5
+			0xF0 ..= 0xF7 => operand | 0x40, // Set bit 6
+			0xF8 ..= 0xFF => operand | 0x80, // Set bit 7
+			_ => panic!("Unimplemented CB operation")
+		};
+		(2, 8) // TODO: Fix timing for (HL operations)
+	}
 
 	fn inc_a(&mut self) -> (u16, u64) {
 		self.reg.a = self.reg.a + 1;
