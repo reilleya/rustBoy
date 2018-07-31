@@ -1,3 +1,13 @@
+pub enum RegisterName {
+	a,
+	f,
+	b,
+	c,
+	d,
+	e,
+	h,
+	l
+}
 
 pub struct Registers {
 	pub a: u8,

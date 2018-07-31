@@ -41,7 +41,7 @@ impl Core {
 				self.reg.set_bc(val);
 				(1, 8)
 			}
-
+			0x04 => self.inc_reg(registers::RegisterName::b),
 			0x05 => self.dec_b(),
 			0x06 => {
 				self.reg.b = self.get_8_pc(1);
@@ -62,7 +62,7 @@ impl Core {
 				self.reg.set_bc(val - 1);
 				(1, 8)
 			}
-			0x0C => self.inc_c(),
+			0x0C => self.inc_reg(registers::RegisterName::c),
 			0x0D => self.dec_c(),
 			0x0E => {
 				self.reg.c = self.get_8_pc(1);
@@ -85,13 +85,21 @@ impl Core {
 				self.reg.set_de(val);
 				(1, 8)
 			}
-
+			0x14 => self.inc_reg(registers::RegisterName::d),
 			0x15 => self.dec_d(),
 			0x16 => {
 				self.reg.d = self.get_8_pc(1);
 				(2, 8)
 			}
 
+			0x18 => {
+				let raw = self.get_8_pc(1);
+				self.reg.pc += raw as u16;
+				if raw & 0x80 != 0 {
+					self.reg.pc -= 256
+				}
+				(2, 8)
+			}
 			0x19 => {
 				let operand = self.reg.get_de();
 				self.addHL(operand)
@@ -106,8 +114,7 @@ impl Core {
 				self.reg.set_de(val - 1);
 				(1, 8)
 			}
-
-
+			0x1C => self.inc_reg(registers::RegisterName::e),
 			0x1D => self.dec_e(),
 			0x1E => {
 				self.reg.e = self.get_8_pc(1);
@@ -142,13 +149,21 @@ impl Core {
 				self.reg.set_hl(val);
 				(1, 8)
 			}
-
+			0x24 => self.inc_reg(registers::RegisterName::h),
 			0x25 => self.dec_h(),
 			0x26 => {
 				self.reg.h = self.get_8_pc(1);
 				(2, 8)
 			}
 
+			0x28 => { // JR Z
+				if self.reg.get_z() {
+					let offset = self.get_8_pc(1) as u16;
+					self.reg.pc += (offset & 0x7f);
+					self.reg.pc -= 128 * ((offset & 0x80) >> 7)
+				}
+				(2, 8)
+			}
 			0x29 => {
 				let operand = self.reg.get_hl();
 				self.addHL(operand)
@@ -161,29 +176,32 @@ impl Core {
 				self.reg.set_hl(hl + 1);
 				(1, 8)
 			}
-
-
 			0x2B => {
 				let val = self.reg.get_hl();
 				self.reg.set_hl(val - 1);
 				(1, 8)
 			}
-
-
+			0x2C => self.inc_reg(registers::RegisterName::l),
 			0x2D => self.dec_l(),
 			0x2E => {
 				self.reg.l = self.get_8_pc(1);
 				(2, 8)
 			}
-			0x2f => {
+			0x2F => {
 				self.reg.a = !self.reg.a;
 				let z = self.reg.get_z();
 				let c = self.reg.get_c();
 				self.reg.set_flags(z, true, true, c);
 				(1, 4)
 			}
-
-
+			0x30 => { // JR NC
+				if !self.reg.get_c() {
+					let offset = self.get_8_pc(1) as u16;
+					self.reg.pc += (offset & 0x7f);
+					self.reg.pc -= 128 * ((offset & 0x80) >> 7)
+				}
+				(2, 8)
+			}
 			0x31 => {
 				self.reg.sp = self.get_16_pc(1);
 				(3, 12)
@@ -211,6 +229,14 @@ impl Core {
 				(2, 12)
 			}
 
+			0x38 => { // JR C
+				if self.reg.get_c() {
+					let offset = self.get_8_pc(1) as u16;
+					self.reg.pc += (offset & 0x7f);
+					self.reg.pc -= 128 * ((offset & 0x80) >> 7)
+				}
+				(2, 8)
+			}
 			0x39 => {
 				let operand = self.reg.sp;
 				self.addHL(operand)
@@ -220,7 +246,7 @@ impl Core {
 				self.reg.sp = self.reg.sp - 1;
 				(1, 8)
 			}
-			0x3C => self.inc_a(),
+			0x3C => self.inc_reg(registers::RegisterName::a),
 
 
 			0x3E => {
@@ -565,12 +591,27 @@ impl Core {
 				self.orA(operand)
 			}
 
+			0xC0 => {
+				if !self.reg.get_z() {
+					self.reg.pc = self.pop();
+					(0, 8)
+				} else {
+					(1, 8)
+				}
+			}
 			0xC1 => {
 				let popped = self.pop();
 				self.reg.set_bc(popped);
 				(1, 12)
 			}
-
+			0xC2 => {
+				if !self.reg.get_z() {
+					self.reg.pc = self.get_16_pc(1);
+					(0, 12)
+				} else {
+					(3, 12)
+				}
+			}
 			0xC3 => {
 				self.reg.pc = self.get_16_pc(1);
 				(0, 4)
@@ -588,12 +629,26 @@ impl Core {
 				self.reg.pc = 0;
 				(1, 32)
 			}
-
+			0xC8 => {
+				if self.reg.get_z() {
+					self.reg.pc = self.pop();
+					(0, 8)
+				} else {
+					(1, 8)
+				}
+			}
 			0xC9 => {
 				self.reg.pc = self.pop();
 				(1, 8)
 			}
-
+			0xCA => {
+				if self.reg.get_z() {
+					self.reg.pc = self.get_16_pc(1);
+					(0, 12)
+				} else {
+					(3, 12)
+				}
+			}
 			0xCB => {
 				let op = self.get_8_pc(1);
 				self.handleCB(op)
@@ -612,13 +667,27 @@ impl Core {
 				self.reg.pc = 0x08;
 				(0, 32)
 			}
-
+			0xD0 => {
+				if !self.reg.get_c() {
+					self.reg.pc = self.pop();
+					(0, 8)
+				} else {
+					(1, 8)
+				}
+			}
 			0xD1 => {
 				let popped = self.pop();
 				self.reg.set_de(popped);
 				(1, 12)
 			}
-
+			0xD2 => {
+				if !self.reg.get_c() {
+					self.reg.pc = self.get_16_pc(1);
+					(0, 12)
+				} else {
+					(3, 12)
+				}
+			}
 			0xD5 => {
 				let val = self.reg.get_de();
 				self.push(val);
@@ -631,7 +700,23 @@ impl Core {
 				self.reg.pc = 0x10;
 				(0, 32)
 			}
+			0xD8 => {
+				if self.reg.get_c() {
+					self.reg.pc = self.pop();
+					(0, 8)
+				} else {
+					(1, 8)
+				}
+			}
 
+			0xDA => {
+				if self.reg.get_c() {
+					self.reg.pc = self.get_16_pc(1);
+					(0, 12)
+				} else {
+					(3, 12)
+				}
+			}
 			0xDF => {
 				let addr = self.reg.pc;
 				self.push(addr + 1);
@@ -840,24 +925,45 @@ impl Core {
 			0xF8 ..= 0xFF => operand | 0x80, // Set bit 7
 			_ => panic!("Unimplemented CB operation")
 		};
-		(2, 8) // TODO: Fix timing for (HL operations)
+		match (op & 0x0F) {
+			0x0 | 0x8 => self.reg.b = operand,
+			0x1 | 0x9 => self.reg.c = operand,
+			0x2 | 0xA => self.reg.d = operand,
+			0x3 | 0xB => self.reg.e = operand,
+			0x4 | 0xC => self.reg.h = operand,
+			0x5 | 0xD => self.reg.l = operand,
+
+			0x7 | 0xF => self.reg.a = operand,
+			_ => panic!("Invalid CB operand")
+		};
+		(2, 8) // TODO: Fix timing for (HL) operations
 	}
 
-	fn inc_a(&mut self) -> (u16, u64) {
-		self.reg.a = self.reg.a + 1;
-		let zero = self.reg.a == 0;
-		let half = (self.reg.a & 0xF) + 1 > 0xF;
-		let carry = self.reg.get_c();
-		self.reg.set_flags(zero, false, half, carry);
-		(1, 4)
-	}
-
-	fn inc_c(&mut self) -> (u16, u64) {
-		self.reg.c = self.reg.c + 1;
-		let zero = self.reg.a == 0;
-		let half = (self.reg.a & 0xF) + 1 > 0xF;
-		let carry = self.reg.get_c();
-		self.reg.set_flags(zero, false, half, carry);
+	fn inc_reg(&mut self, reg_name:registers::RegisterName) -> (u16, u64) {
+		let operand = match reg_name {
+			registers::RegisterName::a => self.reg.a,
+			registers::RegisterName::b => self.reg.b,
+			registers::RegisterName::c => self.reg.c,
+			registers::RegisterName::d => self.reg.d,
+			registers::RegisterName::e => self.reg.e,
+			registers::RegisterName::h => self.reg.h,
+			registers::RegisterName::l => self.reg.l,			
+			_ => panic!("Invalid register in inc")
+		};
+		let (res, carry) = operand.overflowing_add(1);
+		let cf = self.reg.get_c();
+		let half = self.reg.e & 0x0F == 0x0F;
+		self.reg.set_flags(carry, false, half, cf);
+		match reg_name {
+			registers::RegisterName::a => self.reg.a = operand,
+			registers::RegisterName::b => self.reg.b = operand,
+			registers::RegisterName::c => self.reg.c = operand,
+			registers::RegisterName::d => self.reg.d = operand,
+			registers::RegisterName::e => self.reg.e = operand,
+			registers::RegisterName::h => self.reg.h = operand,
+			registers::RegisterName::l => self.reg.l = operand,			
+			_ => panic!("Invalid register in inc")
+		};
 		(1, 4)
 	}
 

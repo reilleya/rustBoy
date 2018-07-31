@@ -24,6 +24,7 @@ impl Display {
 
 	pub fn get_mem(&self, loc:u16) -> u8 {
 		match loc {
+			0xFF40 => 0,
 			0xFF44 => self.ly_coord,
 			_ => {
 				println!("Disp read from {:2X} unsupported", loc);
