@@ -37,8 +37,9 @@ impl Core {
 				(1, 8)
 			}
 			0x03 => {
-				let val = self.reg.get_bc() + 1;
-				self.reg.set_bc(val);
+				let val = self.reg.get_bc();
+				let (res, carry) = val.overflowing_add(1);
+				self.reg.set_bc(res);
 				(1, 8)
 			}
 			0x04 => self.inc_reg(registers::RegisterName::b),
@@ -48,6 +49,14 @@ impl Core {
 				(2, 8)
 			}
 
+			0x08 => {
+				let addr = self.get_16_pc(1);
+				let loval = (self.reg.sp & 0x00FF) as u8;
+				let hival = ((self.reg.sp & 0xFF00) >> 8) as u8;
+				self.mem.set_mem(addr, loval);
+				self.mem.set_mem(addr + 1, hival);
+				(3, 20)
+			}
 			0x09 => {
 				let operand = self.reg.get_bc();
 				self.addHL(operand)
@@ -488,6 +497,42 @@ impl Core {
 			}
 			0x7F => (1, 4),
 
+			0x90 => {
+				let val = self.reg.b;
+				self.sub_a(val);
+				(1, 4)
+			}
+			0x91 => {
+				let val = self.reg.c;
+				self.sub_a(val);
+				(1, 4)
+			}
+			0x92 => {
+				let val = self.reg.d;
+				self.sub_a(val);
+				(1, 4)
+			}
+			0x93 => {
+				let val = self.reg.e;
+				self.sub_a(val);
+				(1, 4)
+			}
+			0x94 => {
+				let val = self.reg.h;
+				self.sub_a(val);
+				(1, 4)
+			}
+			0x95 => {
+				let val = self.reg.l;
+				self.sub_a(val);
+				(1, 4)
+			}
+			0x96 => {
+				let val = self.mem.get_mem(self.reg.get_hl());
+				self.sub_a(val);
+				(1, 4)
+			}
+
 			0x9B => {
 				let val = self.reg.e;
 				self.subc_a(val);
@@ -616,13 +661,29 @@ impl Core {
 				self.reg.pc = self.get_16_pc(1);
 				(0, 4)
 			}
-
+			0xC4 => { // CALL NZ
+				if !self.reg.get_z() {
+					let pc = self.reg.pc;
+					self.reg.pc = self.get_16_pc(1) - 2;
+					self.push(pc + 2); // +2 so it will ret to the next op
+					(2, 12)
+				}
+				else {
+					(3, 12)
+				}
+			}
 			0xC5 => {
 				let val = self.reg.get_bc();
 				self.push(val);
 				(1, 16)
 			}
-
+			0xC6 => {
+				let val = self.get_8_pc(1);
+				let (res, carry) = self.reg.a.overflowing_add(val);
+				self.reg.a = res;
+				self.reg.set_flags(res == 0, false, false, carry); // Fix half carry
+				(2, 8)
+			}
 			0xC7 => {
 				let addr = self.reg.pc;
 				self.push(addr);
@@ -653,7 +714,17 @@ impl Core {
 				let op = self.get_8_pc(1);
 				self.handleCB(op)
 			}
-
+			0xCC => { // CALL Z
+				if self.reg.get_z() {
+					let pc = self.reg.pc;
+					self.reg.pc = self.get_16_pc(1) - 2;
+					self.push(pc + 2); // +2 so it will ret to the next op
+					(2, 12)
+				}
+				else {
+					(3, 12)
+				}
+			}
 			0xCD => {
 				let pc = self.reg.pc;
 				self.reg.pc = self.get_16_pc(1) - 2;
@@ -688,12 +759,30 @@ impl Core {
 					(3, 12)
 				}
 			}
+
+			0xD4 => { // CALL NC
+				if !self.reg.get_c() {
+					let pc = self.reg.pc;
+					self.reg.pc = self.get_16_pc(1) - 2;
+					self.push(pc + 2); // +2 so it will ret to the next op
+					(2, 12)
+				}
+				else {
+					(3, 12)
+				}
+			}
 			0xD5 => {
 				let val = self.reg.get_de();
 				self.push(val);
 				(1, 16)
 			}
-
+			0xD6 => {
+				let val = self.get_8_pc(1);
+				let (res, carry) = self.reg.a.overflowing_sub(val);
+				self.reg.a = res;
+				self.reg.set_flags(res == 0, true, false, !carry); // Fix half carry
+				(2, 8)
+			}
 			0xD7 => {
 				let addr = self.reg.pc;
 				self.push(addr + 1);
@@ -717,6 +806,19 @@ impl Core {
 					(3, 12)
 				}
 			}
+
+			0xDC => { // CALL C
+				if self.reg.get_c() {
+					let pc = self.reg.pc;
+					self.reg.pc = self.get_16_pc(1) - 2;
+					self.push(pc + 2); // +2 so it will ret to the next op
+					(2, 12)
+				}
+				else {
+					(3, 12)
+				}
+			}
+
 			0xDF => {
 				let addr = self.reg.pc;
 				self.push(addr + 1);
@@ -829,6 +931,8 @@ impl Core {
 			}
 			_ => panic!("Instruction {:2X} at {:2X} not implemented!", ins, self.reg.pc)
 		};
+		self.reg.dispState();
+		println!("");
 		self.reg.pc += _numsteps.0;
 		self.mem.update(_numsteps.1);
 	}
@@ -884,7 +988,6 @@ impl Core {
 	}
 
 	fn handleCB(&mut self, op:u8) -> (u16, u64) {
-
 		let mut operand = match (op & 0x0F) {
 			0x0 | 0x8 => self.reg.b,
 			0x1 | 0x9 => self.reg.c,
@@ -955,13 +1058,13 @@ impl Core {
 		let half = self.reg.e & 0x0F == 0x0F;
 		self.reg.set_flags(carry, false, half, cf);
 		match reg_name {
-			registers::RegisterName::a => self.reg.a = operand,
-			registers::RegisterName::b => self.reg.b = operand,
-			registers::RegisterName::c => self.reg.c = operand,
-			registers::RegisterName::d => self.reg.d = operand,
-			registers::RegisterName::e => self.reg.e = operand,
-			registers::RegisterName::h => self.reg.h = operand,
-			registers::RegisterName::l => self.reg.l = operand,			
+			registers::RegisterName::a => self.reg.a = res,
+			registers::RegisterName::b => self.reg.b = res,
+			registers::RegisterName::c => self.reg.c = res,
+			registers::RegisterName::d => self.reg.d = res,
+			registers::RegisterName::e => self.reg.e = res,
+			registers::RegisterName::h => self.reg.h = res,
+			registers::RegisterName::l => self.reg.l = res,			
 			_ => panic!("Invalid register in inc")
 		};
 		(1, 4)
@@ -1041,6 +1144,12 @@ impl Core {
 		let (res, carry) = self.reg.a.overflowing_sub((self.reg.get_c() as u8) + val);
 		self.reg.a = res;
 		self.reg.set_flags(res == 0, true, false, false); // TODO: carry and half carry
+	}
+
+	fn sub_a(&mut self, val:u8) {
+		let (res, carry) = self.reg.a.overflowing_sub(val);
+		self.reg.a = res;
+		self.reg.set_flags(res == 0, true, false, !carry); // TODO: carry and half carry
 	}
 
 	// A + B -> A
@@ -1133,5 +1242,13 @@ mod test {
 		assert_eq!(testcore.pop(), 0x8642);
 		assert_eq!(testcore.pop(), 0xDFD4);
 		assert_eq!(testcore.pop(), 0xABCD);
+	}
+
+	#[test]
+	fn test_inc_reg() {
+		let mut testcore = super::Core::new();
+		testcore.inc_reg(super::registers::RegisterName::l);
+		assert_eq!(testcore.reg.l, 0x4E);
+
 	}
 }
