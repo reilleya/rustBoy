@@ -1,5 +1,6 @@
 use super::rom::ROM;
 use super::display::Display;
+use super::Core;
 
 use super::timer::Timer;
 
@@ -26,7 +27,7 @@ impl Memory {
 	}
 
 	pub fn get_mem(&self, loc:u16) -> u8 {
-		println!("Read {:2X}", loc);
+		//println!("Read {:2X}", loc);
 		match loc {
 			0x0000 ..= 0x7FFF => self.rom.get_mem(loc),
 			0x8000 ..= 0x9FFF => 0, // VRAM
@@ -35,7 +36,8 @@ impl Memory {
 			0xE000 ..= 0xFDFF => self.ram[(loc - 0xE000) as usize], // RAM echo
 			0xFE00 ..= 0xFE9F => 0, // OAM
 			0xFEA0 ..= 0xFEFF => 0, // IO
-			0xFF00 ..= 0xFF3F => 0, // IO
+			0xFF00 => 0, // Gamepad
+			0xFF01 ..= 0xFF3F => 0, // IO
 			0xFF40 ..= 0xFF4B => self.disp.get_mem(loc),
 			0xFF4C ..= 0xFF7F => 0, // IO
 			0xFF80 ..= 0xFFFE => self.ram[(0x2000 + (loc - 0xFF80)) as usize],// RAM
@@ -49,14 +51,14 @@ impl Memory {
 	}
 
 	pub fn set_mem(&mut self, loc:u16, val:u8) {
-		println!("Wrote {:2X} to {:2X}", val, loc);
+		//println!("Wrote {:2X} to {:2X}", val, loc);
 
 		match loc {
 			0x0000 ..= 0x7FFF => {
 				// CART
 			},
 			0x8000 ..= 0x9FFF => {
-				// VRAM
+				self.disp.set_mem(loc, val);
 			},
 			0xA000 ..= 0xBFFF => {
 				// SWITCH_RAM
@@ -96,7 +98,7 @@ impl Memory {
 mod test {
 	#[test]
 	fn test_read_reachable() {
-		let mut memory = super::Memory::create_memory();
+		let memory = super::Memory::create_memory();
 		for loc in 0x0000 ..= 0xFFFF {
 			memory.get_mem(loc);
 		}

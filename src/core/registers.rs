@@ -115,7 +115,7 @@ impl Registers {
 		self.f = (self.f & 0b11101111) | ((c as u8) << 4);
 	}
 
-	pub fn dispState(&self) {
+	pub fn disp_state(&self) {
 		println!("AF: {:4X}", self.get_af());
 		println!("BC: {:4X}", self.get_bc());
 		println!("DE: {:4X}", self.get_de());
