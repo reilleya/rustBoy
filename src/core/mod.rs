@@ -11,6 +11,26 @@ pub struct Core {
 	pub int: interrupts::Interrupts,
 }
 
+fn check_add_half_carry(a:u8, b:u8) -> bool {
+	let lower = a & 0xF;
+	let (_res, carry) = lower.overflowing_add(b & 0xF);
+	carry
+}
+
+fn check_sub_half_carry(a:u8, b:u8) -> bool {
+	let lower = a & 0xF;
+	let (_res, carry) = lower.overflowing_sub(b & 0xF);
+	carry
+}
+
+fn check_add_half_carry_16(a:u16, b:u16) -> bool {
+	((a & 0xFFF) + (b & 0xFFF) & 0x1000) == 0x1000
+}
+
+fn check_sub_half_carry_16(a:u16, b:u16) -> bool {
+	(((a & 0x0FFF) + 0x1000) - (b & 0x0FFF) & 0x1000) == 0x1000
+}
+
 impl Core {
 	pub fn new() -> Core {
 		Core {
@@ -538,37 +558,37 @@ impl Core {
 			0x85 => self.op_85(),
 			0x87 => self.op_87(),
 
-			0x90 => {
+			0x90 => { // SUB A, B
 				let val = self.reg.b;
 				self.sub_a(val);
 				(1, 4)
 			}
-			0x91 => {
+			0x91 => { // SUB A, C
 				let val = self.reg.c;
 				self.sub_a(val);
 				(1, 4)
 			}
-			0x92 => {
+			0x92 => { // SUB A, D
 				let val = self.reg.d;
 				self.sub_a(val);
 				(1, 4)
 			}
-			0x93 => {
+			0x93 => { // SUB A, E
 				let val = self.reg.e;
 				self.sub_a(val);
 				(1, 4)
 			}
-			0x94 => {
+			0x94 => { // SUB A, H
 				let val = self.reg.h;
 				self.sub_a(val);
 				(1, 4)
 			}
-			0x95 => {
+			0x95 => { // SUB A, L
 				let val = self.reg.l;
 				self.sub_a(val);
 				(1, 4)
 			}
-			0x96 => {
+			0x96 => { // SUB A, (HL)
 				let val = self.mem.get_mem(self.reg.get_hl());
 				self.sub_a(val);
 				(1, 4)
@@ -780,9 +800,10 @@ impl Core {
 			}
 			0xCE => { // ADC A,#
 				let (operand, op_Carry) = self.get_8_pc(1).overflowing_add(self.reg.get_c() as u8);
-				let (res, _carry) = self.reg.a.overflowing_add(operand);
+				let hc = check_add_half_carry(self.reg.a, operand);
+				let (res, carry) = self.reg.a.overflowing_add(operand);
 				self.reg.a = res;
-				self.reg.set_flags(res == 0, false, false, _carry); // TODO: Fix half carry
+				self.reg.set_flags(res == 0, false, hc, carry);
 				(2, 8)
 			}
 			0xCF => {
@@ -972,12 +993,12 @@ impl Core {
 				(1, 4)
 			}			
 
-			0xFE => {
+			0xFE => { // CP A, #
 				let cmp = self.get_8_pc(1);
 				let a = self.reg.a;
 				self.reg.set_z(a == cmp);
 				self.reg.set_n(true);
-				self.reg.set_h(true); // TODO
+				self.reg.set_h(check_sub_half_carry(a, cmp));
 				self.reg.set_c(a < cmp);
 				(2, 8)
 			}
@@ -1038,10 +1059,12 @@ impl Core {
 	}
 
 	fn add_hl(&mut self, operand:u16) -> (u16, u64) {
-		let val = self.reg.get_hl() + operand;
-		self.reg.set_hl(val);
+		let hc = check_add_half_carry_16(self.reg.get_hl(), operand);
+		let operand = self.reg.get_hl();
+		let (res, carry) = operand.overflowing_add(operand);
+		self.reg.set_hl(res);
 		let z = self.reg.get_z();
-		self.reg.set_flags(z, false, true, true); // Todo: Fix carry
+		self.reg.set_flags(z, false, hc, carry);
 		(1, 8)
 	}
 
@@ -1241,15 +1264,17 @@ impl Core {
 	}
 
 	fn subc_a(&mut self, val:u8) {
-		let (res, _carry) = self.reg.a.overflowing_sub((self.reg.get_c() as u8) + val);
+		let hc = check_sub_half_carry(self.reg.a, (self.reg.get_c() as u8) + val);
+		let (res, carry) = self.reg.a.overflowing_sub((self.reg.get_c() as u8) + val);
 		self.reg.a = res;
-		self.reg.set_flags(res == 0, true, false, false); // TODO: carry and half carry
+		self.reg.set_flags(res == 0, true, hc, !carry);
 	}
 
 	fn sub_a(&mut self, val:u8) {
-		let (res, _carry) = self.reg.a.overflowing_sub(val);
+		let hc = check_sub_half_carry(self.reg.a, val);
+		let (res, carry) = self.reg.a.overflowing_sub(val);
 		self.reg.a = res;
-		self.reg.set_flags(res == 0, true, false, !_carry); // TODO: carry and half carry
+		self.reg.set_flags(res == 0, true, hc, !carry);
 	}
 
 	// A + B -> A
@@ -1356,5 +1381,15 @@ mod test {
 		let mut testcore = super::Core::new();
 		testcore.dec_reg(super::registers::RegisterName::l);
 		assert_eq!(testcore.reg.l, 0x4C);
+	}
+
+	#[test]
+	fn test_sub_half_carry() {
+		use super::check_sub_half_carry;
+		assert_eq!(check_sub_half_carry(0b00000000, 0x00000000), false);
+		assert_eq!(check_sub_half_carry(0b10100110, 0x00000000), false);
+		assert_eq!(check_sub_half_carry(0b10101100, 0b00000001), false);
+		assert_eq!(check_sub_half_carry(0b10000000, 0b00000001), true);
+		assert_eq!(check_sub_half_carry(0b10010000, 0b00000001), true);
 	}
 }
